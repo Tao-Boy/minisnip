@@ -1,0 +1,7 @@
+minisnip is a minimal re-implementation of LuaSnip (https://github.com/L3MON4D3/LuaSnip),
+Copyright (c) L3MON4D3 and contributors, licensed under the Apache License 2.0.
+
+Parts of minisnip are derived from LuaSnip and keep its semantics:
+the fmt/fmta interpolation (lua/minisnip/fmt.lua), condition objects
+(lua/minisnip/extras.lua), trigger matching rules and the selection-cut
+key sequence (lua/minisnip/select.lua).
