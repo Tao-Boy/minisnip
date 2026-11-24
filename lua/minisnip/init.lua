@@ -18,7 +18,6 @@ function M.snippet(context, nodes, opts)
   opts = opts or {}
   local trig = context.trig or ""
   local reg = context.regTrig or context.trigEngine == "pattern"
-  local dscr = context.dscr or context.desc
   return {
     trigger = trig,
     regTrig = reg or nil,
@@ -26,10 +25,6 @@ function M.snippet(context, nodes, opts)
     priority = context.priority,
     snippetType = context.snippetType,
     condition = context.condition or opts.condition,
-    show_condition = context.show_condition or opts.show_condition,
-    name = context.name or trig,
-    dscr = type(dscr) == "string" and vim.split(dscr, "\n", { plain = true }) or dscr,
-    hidden = context.hidden,
     nodes = node.wrap(nodes),
     last_byte = not reg and trig:byte(-1) or nil,
   }
@@ -41,7 +36,7 @@ M.parser = {
 }
 
 ------------------------------------------------------------------ registry
-local R = { by_ft = {}, extends = {}, cache = {}, by_id = {}, n = 0 }
+local R = { by_ft = {}, extends = {}, cache = {}, n = 0 }
 
 function M.add_snippets(ft, snippets, opts)
   opts = opts or {}
@@ -53,16 +48,14 @@ function M.add_snippets(ft, snippets, opts)
   R.by_ft[ft] = list
   for _, snip in ipairs(snippets) do
     R.n = R.n + 1
-    snip.id, snip.order, snip.key = R.n, R.n, opts.key
+    snip.order, snip.key = R.n, opts.key
     snip.priority = snip.priority or opts.default_priority or 1000
     snip.ftype = snip.snippetType == "autosnippet" and "autosnippets"
       or snip.snippetType == "snippet" and "snippets"
       or opts.type or "snippets"
-    R.by_id[R.n] = snip
     list[#list + 1] = snip
   end
   R.cache = {}
-  pcall(api.nvim_exec_autocmds, "User", { pattern = "LuasnipSnippetsAdded", modeline = false })
 end
 
 -- remove all snippets that were added with `key` (used when reloading a file)
@@ -105,8 +98,6 @@ function M.get_snippets(ft, opts)
   end
   return vim.tbl_filter(function(s) return s.ftype == ty end, R.by_ft[ft] or {})
 end
-
-function M.get_id_snippet(id) return R.by_id[id] end
 
 -- candidates for the current buffer: priority desc, then filetype order, then definition order
 local function candidates(ty)
@@ -252,7 +243,7 @@ local function make_env(trigger, captures)
     SELECT_DEDENT = dedent, LS_SELECT_DEDENT = dedent, LS_TRIGGER = trigger,
   }
   for k, c in ipairs(captures) do env["LS_CAPTURE_" .. k] = c end
-  return setmetatable(env, { __index = function(_, k) return require("minisnip.parser").var(k) end })
+  return env
 end
 
 --- Expand `snip` at the cursor.
@@ -313,10 +304,6 @@ function M.expand()
 end
 
 function M.expandable() return find("snippets") ~= nil end
-
-function M.lsp_expand(body)
-  return M.snip_expand(require("minisnip.parser").parse_snippet("", body), {})
-end
 
 ---------------------------------------------------------------------- jumps
 function M.jumpable(dir)
@@ -483,25 +470,6 @@ function M.setup(opts)
 end
 M.set_config = M.setup
 M.config = { setup = M.setup, set_config = M.setup }
-
--- textual preview of a snippet (used for completion documentation)
-function M.get_docstring(snip)
-  local out = {}
-  local function walk(nodes)
-    for _, n in ipairs(nodes) do
-      if n.type == "t" then out[#out + 1] = table.concat(n.text, "\n")
-      elseif n.type == "i" then
-        local txt = table.concat(n.text, "\n")
-        out[#out + 1] = txt == "" and ("$" .. (n.pos or "")) or ("${" .. (n.pos or "") .. ":" .. txt .. "}")
-      elseif n.type == "sn" then walk(n.nodes)
-      elseif n.type == "c" then walk({ n.choices[1] })
-      elseif n.type == "r" then walk({ n.node })
-      else out[#out + 1] = "…" end
-    end
-  end
-  walk(snip.nodes)
-  return table.concat(out)
-end
 
 M.setup()
 
