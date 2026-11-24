@@ -68,6 +68,26 @@ function M.range(n)
   return m[1], m[2], m[3].end_row, m[3].end_col
 end
 
+-- After edits that destroy the snippet's text (undoing the expansion, deleting
+-- all lines, pasting over it) its extmarks can point past the buffer's end.
+-- Returns false if any mark in the tree is missing or out of bounds.
+function M.valid(root)
+  local buf = root.buf
+  if not api.nvim_buf_is_valid(buf) then return false end
+  local last = api.nvim_buf_line_count(buf) - 1
+  local ok = true
+  M.walk(root, function(n)
+    if not ok or not n.mark then return end
+    local m = api.nvim_buf_get_extmark_by_id(buf, M.ns, n.mark, { details = true })
+    if not m[1] then ok = false; return end
+    local sr, sc, er, ec = m[1], m[2], m[3].end_row, m[3].end_col
+    if er > last or sr > er or (sr == er and sc > ec) then ok = false; return end
+    local ls = api.nvim_buf_get_lines(buf, sr, er + 1, true)
+    ok = sc <= #ls[1] and ec <= #ls[#ls]
+  end)
+  return ok
+end
+
 function M.get_text(n)
   local sr, sc, er, ec = M.range(n)
   return api.nvim_buf_get_text(n.buf, sr, sc, er, ec, {})

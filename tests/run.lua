@@ -161,6 +161,29 @@ reset(); type_("ff"); jump(1); jump(1)
 check("not jumpable at end", tostring(ls.jumpable(1)), "false")
 check("cursor at $0", cursor(), "1:9")
 
+-- destroying the snippet's text must drop it silently (used to raise
+-- "Index out of bounds" from the rep update on TextChanged)
+local notified = {}
+local notify = vim.notify
+vim.notify = function(msg) notified[#notified + 1] = msg end
+-- undo leaves every mark collapsed at one valid position, so only the other two drop the snippet
+local destroy = {
+  { "undo expansion", function() feed("u"); feed("u") end, false },
+  { "delete all lines", function() feed("ggdG") end, true },
+  { "paste over snippet", function() feed("ggVGp") end, true },
+}
+for _, case in ipairs(destroy) do
+  local name, fn, dropped = case[1], case[2], case[3]
+  notified = {}
+  reset(); type_("beg"); type_("ab"); feed("<Esc>")
+  fn()
+  check(name .. ": no error", table.concat(notified, "; "), "")
+  if dropped then check(name .. ": snippet dropped", tostring(ls.jumpable(1)), "false") end
+  feed("Go"); type_("ff"); type_("1"); jump(1); type_("2")
+  check(name .. ": next snippet works", vim.api.nvim_get_current_line(), "\\frac{1}{2}")
+end
+vim.notify = notify
+
 print(("\n%d/%d passed"):format(count - failures, count))
 if failures > 0 then vim.cmd("cquit 1") else vim.cmd("qa!") end
 end
