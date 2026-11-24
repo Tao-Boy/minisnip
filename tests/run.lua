@@ -55,6 +55,8 @@ ls.filetype_extend("tex", { "tex_shared" })
 ls.add_snippets("tex_shared", { s(auto({ trig = "shd" }), t("shared")) })
 ls.add_snippets("lua", {
   s({ trig = "req" }, fmt([[local {} = require("{}")]], { l(l._1:match("[^.]*$"):gsub("[^%a]+", "_"), 1), i(1) })),
+  ls.parser.parse_snippet("lm", "local M = {}\n\n$1 \n\nreturn M"),
+  ls.parser.parse_snippet("fn", "f(${1:x}, $2) \\$ ${1}$0"),
 })
 
 ---------------------------------------------------------------- harness
@@ -149,11 +151,11 @@ check("manual expand", buf(), "note A B")
 reset("lua"); type_("req"); ls.expand(); wait(); type_("foo.bar-baz")
 check("lambda", buf(), 'local bar_baz = require("foo.bar-baz")')
 
-reset(); ls.lsp_expand("f(${1:x}, $2)$0"); wait(); type_("a"); jump(1); type_("b"); jump(1); type_(";")
-check("lsp_expand", buf(), "f(a, b);")
+reset("lua"); type_("lm"); ls.expand(); wait(); type_("x")
+check("parse_snippet", buf(), "local M = {}\n\nx \n\nreturn M")
 
-reset(); ls.lsp_expand("${1:a} = $1"); wait(); type_("q")
-check("lsp_expand mirror", buf(), "q = q")
+reset("lua"); type_("fn"); ls.expand(); wait(); type_("a"); jump(1); type_("b"); jump(1); type_(";")
+check("parse_snippet placeholder/mirror/escape", buf(), "f(a, b) $ a;")
 
 reset(); type_("ff"); jump(1); jump(1)
 check("not jumpable at end", tostring(ls.jumpable(1)), "false")
