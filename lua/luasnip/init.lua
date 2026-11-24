@@ -194,10 +194,6 @@ end
 -- the insert node containing them through `parent_node`.
 local S = { cur = nil, buf = nil }
 
-local function current()
-  if S.cur and S.buf == api.nvim_get_current_buf() and api.nvim_buf_is_valid(S.buf) then return S.cur end
-end
-
 local function root_of(snip)
   while snip.parent_node do snip = node.snippet_of(snip.parent_node) end
   return snip
@@ -224,6 +220,13 @@ local function exit_all()
   S.cur = nil
 end
 M.unlink_current = exit_all
+
+-- active snippet of the current buffer; a snippet whose text was destroyed is dropped
+local function current()
+  if not S.cur or S.buf ~= api.nvim_get_current_buf() then return end
+  if node.valid(root_of(S.cur)) then return S.cur end
+  exit_all()
+end
 
 local function feed(keys)
   api.nvim_feedkeys(api.nvim_replace_termcodes(keys, true, false, true), "ni", false)
@@ -329,7 +332,7 @@ function M.snip_expand(snip, opts)
   local to = opts.clear_region and opts.clear_region.to or { row, col }
 
   -- nest into the focused insert node if the trigger was typed inside it
-  if S.cur and S.buf ~= buf then exit_all() end
+  if S.cur and not current() then exit_all() end
   local parent
   while S.cur do
     local f = S.cur.focus
@@ -498,11 +501,8 @@ local function update()
 end
 
 function M.active_update_dependents()
-  local ok, err = pcall(update)
-  if not ok then
-    exit_all()
-    vim.notify("luasnip: snippet state lost (" .. tostring(err) .. ")", vim.log.levels.DEBUG)
-  end
+  -- an edit we could not follow: forget the snippet instead of erroring on every keystroke
+  if not pcall(update) then exit_all() end
 end
 
 --------------------------------------------------------------------- config
