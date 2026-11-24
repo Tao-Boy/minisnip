@@ -265,8 +265,8 @@ local function enter(leaf)
   local sr, sc, er, ec = node.range(leaf)
   if leaf.type == "i" and leaf.pos ~= 0 and (sr ~= er or sc ~= ec) then
     select_range(sr, sc, er, ec)
-  elseif leaf.type == "i" and leaf.pos ~= 0 or leaf.type == "snippet" then
-    cursor_to(sr, sc)
+  elseif leaf.type == "i" and leaf.pos ~= 0 or leaf.type == "snippet" or leaf.type == "c" then
+    cursor_to(sr, sc) -- empty placeholder, snippet start, or a text-only choice (like LuaSnip)
   else
     cursor_to(er, ec)
   end
