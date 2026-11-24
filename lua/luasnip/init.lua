@@ -265,7 +265,7 @@ local function enter(leaf)
   local sr, sc, er, ec = node.range(leaf)
   if leaf.type == "i" and leaf.pos ~= 0 and (sr ~= er or sc ~= ec) then
     select_range(sr, sc, er, ec)
-  elseif leaf.type == "i" and leaf.pos ~= 0 then
+  elseif leaf.type == "i" and leaf.pos ~= 0 or leaf.type == "snippet" then
     cursor_to(sr, sc)
   else
     cursor_to(er, ec)
@@ -361,6 +361,7 @@ function M.snip_expand(snip, opts)
   inst.parent_node = parent
   if parent then parent.child = inst end
   S.cur, S.buf = inst, buf
+  S.seen = math.max(parent and S.seen or 0, vim.fn.changenr())
   enter(leaf)
   return true
 end
@@ -474,12 +475,20 @@ local function update()
   node.walk(root_of(cur), function(n)
     if n.type == "f" or n.type == "d" and #n.args > 0 then todo[#todo + 1] = n end
   end)
+  -- remember the cursor relative to the focused node, like LuaSnip does: an update
+  -- before the cursor on the same line would otherwise leave it misplaced
+  local rel
+  local f = cur.focus
+  local row, col = unpack(api.nvim_win_get_cursor(0))
+  row = row - 1
+  local fr, fc = node.range(f)
+  if f.type == "i" and inside(f, { row, col }) then rel = { row - fr, row == fr and col - fc or col } end
   local changed = false
   for _, n in ipairs(todo) do
     if n.mark then
       if n.type == "f" then
         local v = node.to_lines(n.fn(node.args_of(n), n.parent, unpack(n.user_args)))
-        if not vim.deep_equal(v, n.value) then node.rerender(n); changed = true end
+        if not vim.deep_equal(v, n.value) then node.rerender(n, true); changed = true end
       elseif not vim.deep_equal(node.args_of(n), n.last_args) then
         local f, was_inside = S.cur.focus, false
         while f do was_inside = was_inside or f == n; f = node.up(f) end
@@ -488,7 +497,7 @@ local function update()
         end
         node.del_marks(n.snip)
         node.gen_dynamic(n)
-        node.rerender(n)
+        node.rerender(n, true)
         changed = true
         if was_inside then
           local leaf = node.first_in(n.snip, 1)
@@ -497,12 +506,33 @@ local function update()
       end
     end
   end
-  if changed and S.cur then node.focus(S.cur.focus) end
+  if changed and S.cur then
+    node.focus(S.cur.focus)
+    if rel and S.cur.focus == f then
+      local nr, nc = node.range(f)
+      api.nvim_win_set_cursor(0, { nr + rel[1] + 1, rel[1] == 0 and nc + rel[2] or rel[2] })
+    end
+    -- the update was joined into the undo step of the edit that caused it; but after
+    -- an API write Neovim merges all further typing into one step, so start a new one
+    if api.nvim_get_mode().mode == "i" and vim.fn.pumvisible() == 0 then feed("<C-g>u") end
+  end
 end
 
-function M.active_update_dependents()
+-- Undo/redo moves text back but leaves our extmarks where gravity put them, so a
+-- later update would write into the wrong range. Real edits only ever increase
+-- changenr(); when it goes backwards in Normal mode, drop the snippet instead.
+local function undone(event)
+  local cn = vim.fn.changenr()
+  if event == "TextChanged" and S.seen and cn < S.seen then return true end
+  S.seen = math.max(S.seen or cn, cn)
+end
+
+function M.active_update_dependents(event)
+  if not current() then return end
+  if undone(event) then return exit_all() end
   -- an edit we could not follow: forget the snippet instead of erroring on every keystroke
   if not pcall(update) then exit_all() end
+  S.seen = math.max(S.seen, vim.fn.changenr())
 end
 
 --------------------------------------------------------------------- config
@@ -532,7 +562,7 @@ function M.setup(opts)
   local ev = config.update_events
   api.nvim_create_autocmd(type(ev) == "string" and { ev } or ev, {
     group = group,
-    callback = function() M.active_update_dependents() end,
+    callback = function(ev) M.active_update_dependents(ev.event) end,
   })
   if config.cut_selection_keys then
     vim.keymap.set("x", config.cut_selection_keys, CUT_KEYS, { silent = true })
