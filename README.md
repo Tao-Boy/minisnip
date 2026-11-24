@@ -3,9 +3,28 @@
 按照 [Fireond/dotfiles](https://github.com/Fireond/dotfiles/tree/main/nvim/.config/nvim/LuaSnip) 实际用到的功能，从 [LuaSnip](https://github.com/L3MON4D3/LuaSnip) 精简出来的 snippet 引擎。
 
 - LuaSnip：81 个文件，约 19 700 行 Lua
-- minisnip：核心 7 个文件，约 1 150 行（另有 12 行的 `luasnip.*` 兼容模块）
+- minisnip：8 个文件，约 1 150 行
 
-提供了 `require("luasnip")`、`require("luasnip.extras.fmt")` 等兼容模块，**原有的 42 个 snippet 文件（1034 个 autosnippet、40 个普通 snippet）一行都不用改**。
+代码直接放在 LuaSnip 的模块路径下（`require("luasnip")`、`require("luasnip.extras.fmt")` 等），**原有的 42 个 snippet 文件（1034 个 autosnippet、40 个普通 snippet）一行都不用改**。
+
+## 目录结构
+
+```
+lua/luasnip/
+├── init.lua                     公开 API：snippet 注册与匹配、展开、跳转、choice、
+│                                函数节点更新、配置、选区剪切、parser.parse_snippet
+├── nodes.lua                    内部：节点构造、实例树、渲染、extmark 与焦点
+├── extras/
+│   ├── init.lua                 rep、lambda
+│   ├── fmt.lua                  fmt、fmta
+│   └── expand_conditions.lua    条件对象、line_begin、line_end
+└── loaders/
+    ├── init.lua                 edit_snippet_files
+    └── from_lua.lua             load / lazy_load，保存后自动重新加载
+plugin/luasnip.lua               <Plug>luasnip-* 映射
+```
+
+除 `nodes.lua` 外，每个文件都对应 dotfiles 里实际 `require` 过的一个 LuaSnip 模块，没有转发用的空壳模块。插件仓库名是 minisnip，但模块名是 `luasnip`，所以不能和原版 LuaSnip 同时安装。
 
 在源码编译的 Neovim 0.12.6 上测试通过（0.9.5 上也能跑）。
 
@@ -39,7 +58,7 @@ LuaSnip 中 dotfiles 没用到的部分全部删除：
 - `from_vscode`、`from_snipmate` 加载器、friendly-snippets 支持、按文件类型懒加载、文件系统监听
 - jsregexp / ECMAScript 与 vim regex 触发引擎（只保留 Lua pattern）
 - `postfix`、`treesitter_postfix`、`otf`、`select_choice`、`snippet_list`、`snip_location`、`dynamic_lambda`、`partial`、`match`、`nonempty` 等 extras
-- `ext_opts` 高亮、`luasnip.util.types`、节点事件与回调（`callbacks`、`User` autocmd）
+- `ext_opts` 高亮、`luasnip.util.types`、`luasnip.extras.filetype_functions`、`luasnip.extras.conditions`、节点事件与回调（`callbacks`、`User` autocmd）
 - `history` / `keep_roots` / `link_children`、`region_check_events`、`delete_check_events`
 - `multiSnippet`、`snippetProxy`、absolute/key indexer、`exit_out_of_region`、`cleanup`、`invalidate`
 - 补全引擎集成（blink.cmp / nvim-cmp 源、`lsp_expand`）、docstring、snippet id
@@ -49,19 +68,20 @@ LuaSnip 中 dotfiles 没用到的部分全部删除：
 ## 安装（LazyVim）
 
 1. 在 `lazyvim.json` 里删掉 `"lazyvim.plugins.extras.coding.luasnip"`，否则 LazyVim 会继续安装原版 LuaSnip。
-2. 用 [`examples/lazyvim.lua`](examples/lazyvim.lua) 替换 `lua/plugins/default/luasnip.lua`。配置和原来一样，只改了三处：
+2. 用 [`examples/lazyvim.lua`](examples/lazyvim.lua) 替换 `lua/plugins/default/luasnip.lua`。配置和原来一样，只改了四处：
    - 插件名换成 `tao-boy/minisnip`；
    - 加了 `event = "InsertEnter"`，一进入插入模式 autosnippet 就能用；
-   - 插入模式的 `fj` 改为 `<Plug>luasnip-expand-or-jump`：minisnip 不接入补全菜单，40 个普通 snippet（`homework`、`note`、`iso` 等）要靠输入触发词后按 `fj` 展开。
+   - 插入模式的 `fj` 改为 `<Plug>luasnip-expand-or-jump`：minisnip 不接入补全菜单，40 个普通 snippet（`homework`、`note`、`iso` 等）要靠输入触发词后按 `fj` 展开；
+   - 删掉了没有用到的 `local ftf = require("luasnip.extras.filetype_functions")`，minisnip 不提供这个模块。
 
-`require("luasnip.loaders").edit_snippet_files({})` 等现有调用可以保持不变。
+`keymaps.lua` 里的 `require("luasnip.loaders").edit_snippet_files({})` 可以保持不变。
 
 ## 用法
 
 和 LuaSnip 写法完全一致：
 
 ```lua
-local ls = require("luasnip") -- 等同 require("minisnip")
+local ls = require("luasnip")
 local s, t, i, f, d, sn, c, r = ls.s, ls.t, ls.i, ls.f, ls.d, ls.sn, ls.c, ls.r
 local fmta = require("luasnip.extras.fmt").fmta
 local rep = require("luasnip.extras").rep

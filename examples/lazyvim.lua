@@ -1,14 +1,14 @@
 -- Drop-in replacement for nvim/.config/nvim/lua/plugins/default/luasnip.lua
 -- Also remove "lazyvim.plugins.extras.coding.luasnip" from lazyvim.json,
 -- otherwise LazyVim keeps installing the real LuaSnip.
--- minisnip has no completion-engine integration: snippets expand by trigger
+-- There is no completion-engine integration: snippets expand by trigger
 -- (autosnippets) or through require("luasnip").expand().
 return {
   {
     "tao-boy/minisnip",
     event = "InsertEnter",
     config = function()
-      local ls = require("luasnip") -- compatibility module, same table as require("minisnip")
+      local ls = require("luasnip")
       ls.config.set_config({
         enable_autosnippets = true,
         store_selection_keys = "`",

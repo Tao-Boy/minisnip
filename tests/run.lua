@@ -1,7 +1,7 @@
 -- Headless tests:  nvim --headless -u NONE -l tests/run.lua   (or: -c "luafile tests/run.lua")
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 vim.opt.rtp:prepend(root)
-vim.cmd("runtime plugin/minisnip.lua")
+vim.cmd("runtime plugin/luasnip.lua")
 
 local ls = require("luasnip")
 local s, sn, t, i, f, d, c, r = ls.s, ls.sn, ls.t, ls.i, ls.f, ls.d, ls.c, ls.r
