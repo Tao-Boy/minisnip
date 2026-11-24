@@ -53,6 +53,13 @@ ls.add_snippets("tex", {
 })
 ls.filetype_extend("tex", { "tex_shared" })
 ls.add_snippets("tex_shared", { s(auto({ trig = "shd" }), t("shared")) })
+ls.add_snippets("tex", { s(auto({ trig = "bf" }), { rep(1), t("|"), i(1) }) })
+-- the dotfiles' expand_auto override: an undo break before every autosnippet check
+local auto_expand = ls.expand_auto
+ls.expand_auto = function(...)
+  vim.o.undolevels = vim.o.undolevels
+  auto_expand(...)
+end
 ls.add_snippets("lua", {
   s({ trig = "req" }, fmt([[local {} = require("{}")]], { l(l._1:match("[^.]*$"):gsub("[^%a]+", "_"), 1), i(1) })),
   ls.parser.parse_snippet("lm", "local M = {}\n\n$1 \n\nreturn M"),
@@ -183,6 +190,26 @@ for _, case in ipairs(destroy) do
   check(name .. ": next snippet works", vim.api.nvim_get_current_line(), "\\frac{1}{2}")
 end
 vim.notify = notify
+
+-- undo goes back one character at a time, the rep mirror always matching
+-- (the first character after an expansion shares its undo step, as in LuaSnip)
+local function undo_states(n)
+  local res = {}
+  for _ = 1, n do feed("u"); res[#res + 1] = buf() end
+  return table.concat(res, " / ")
+end
+reset(); type_("beg"); type_("ab"); feed("<Esc>")
+check("undo char + mirror together", undo_states(2), "\\begin{a}\n  \n\\end{a} / beg")
+
+reset(); type_("bf"); type_("abc")
+check("mirror before cursor keeps cursor", buf() .. " @" .. cursor(), "abc|abc @1:7")
+feed("<Esc>")
+check("undo with mirror before cursor", undo_states(2), "ab|ab / a|a")
+
+reset(); type_("ff"); type_("a"); jump(-1); type_("b")
+check("jump back from first goes to snippet start", buf(), "b\\frac{a}{}")
+jump(1); type_("c")
+check("and forward again re-enters it", buf(), "b\\frac{c}{}")
 
 print(("\n%d/%d passed"):format(count - failures, count))
 if failures > 0 then vim.cmd("cquit 1") else vim.cmd("qa!") end

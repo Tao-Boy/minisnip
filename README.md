@@ -103,8 +103,7 @@ snippet 文件放在 `<path>/<filetype>.lua` 或 `<path>/<filetype>/*.lua`，可
 ## 和 LuaSnip 的行为差异
 
 - 没有 history：跳过根 snippet 的 `$0` 之后再往前跳不会回到旧 snippet。
-- 嵌套 snippet 在第一个节点上往回跳时退出，并选中外层的占位符。
-- 只有文本选项的 choice 节点获得焦点时，光标放在选项文本末尾。
+- 撤销（`u`）：minisnip 让 `rep`/函数节点的更新和引起它的输入归在同一个撤销步骤里，每按一次 `u` 撤回一个字符，镜像文本始终同步；LuaSnip 的镜像会落后一步。一旦撤销，当前 snippet 会退出（文本照常恢复，只是不能再跳转）。
 - 不提供补全引擎（blink.cmp / nvim-cmp）的 snippet 源，LSP 补全里的 snippet 交给补全引擎自己处理。
 
 ## 测试

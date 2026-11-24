@@ -287,14 +287,16 @@ function M.builder(row, col, indent)
   return { lines = { "" }, row = row, col = col, indent = indent }
 end
 
--- Re-render instance `n` in place (after its content changed).
-function M.rerender(n)
+-- Re-render instance `n` in place (after its content changed). With `join`, the
+-- change is merged into the previous undo step (dependents follow their source).
+function M.rerender(n, join)
   M.focus(n)
   local sr, sc, er, ec = M.range(n)
   for _, ch in ipairs(children(n)) do M.del_marks(ch) end
   if n.type == "f" then n.value = nil end
   local b = M.builder(sr, sc, n.root.indent)
   M.render(n, b)
+  if join then pcall(vim.cmd.undojoin) end
   api.nvim_buf_set_text(n.buf, sr, sc, er, ec, b.lines)
   M.place_marks(n)
 end
@@ -341,6 +343,8 @@ end
 -- snippets that are left on the way (innermost first).
 function M.next_leaf(n, dir)
   local exits = {}
+  -- the root snippet itself is the position before its first node (like LuaSnip)
+  if n.type == "snippet" then return dir > 0 and first_in(n, 1) or nil, exits end
   while true do
     local p = n.parent
     if p.type == "sn" or p.type == "snippet" then
@@ -354,7 +358,7 @@ function M.next_leaf(n, dir)
         end
       end
       if p.type == "snippet" then
-        if not p.parent_node then return nil, exits end
+        if not p.parent_node then return dir < 0 and p or nil, exits end
         exits[#exits + 1] = p
         if dir < 0 then return p.parent_node, exits end
         n = p.parent_node
