@@ -9,7 +9,7 @@ local M = {}
 
 local api = vim.api
 local unpack = unpack or table.unpack
-M.ns = api.nvim_create_namespace("minisnip")
+M.ns = api.nvim_create_namespace("luasnip")
 
 local function lines_of(text)
   if text == nil then return { "" } end
